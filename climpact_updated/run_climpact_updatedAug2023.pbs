@@ -1,0 +1,66 @@
+#!/bin/bash
+#PBS -l ncpus=16
+#PBS -l mem=64gb
+#PBS -l walltime=6:00:00
+#PBS -l jobfs=100gb
+#PBS -l wd
+#PBS -l storage=gdata/hh5+gdata/w40+gdata/al33+gdata/rr3+scratch/w35+scratch/w40+scratch/wq02
+#PBS -P wq02
+#PBS -W umask=0022
+#PBS -j oe
+
+module use /g/data/hh5/public/modules
+#module load R
+module load cdo
+module load proj/8.1.1
+module load R/4.2.2
+module load intel-compiler/2021.6.0
+module load intel-mkl/2021.4.0
+module load udunits/2.2.26
+module load netcdf/4.6.3
+ulimit -s unlimited
+
+set -eu
+set -x
+
+echo "Runid     $name"
+echo "Task      $task"
+echo "Input Dir $input_dir"
+echo "Output    $output_dir"
+echo "tasmin    $tasmin"
+echo "tasmax    $tasmax"
+echo "pr        $pr"
+echo "threshold $thresholds"
+echo "suffix    $file_suffix"
+
+# pr_pp=$PBS_JOBFS/pr.nc
+# tasmin_pp=$PBS_JOBFS/tasmin.nc
+# tasmax_pp=$PBS_JOBFS/tasmax.nc
+
+pr_pp=$input_dir/pr_$file_suffix.nc
+tasmin_pp=$input_dir/tasmin_$file_suffix.nc
+tasmax_pp=$input_dir/tasmax_$file_suffix.nc
+
+# ./preprocess.py $tasmin $tasmin_pp
+# ./preprocess.py $tasmax $tasmax_pp
+# ./preprocess.py $pr $pr_pp
+
+if [ "$task" == "thresholds" ]; then
+    Rscript climpact2.ncdf.thresholds.wrapper.yl1269.r "$tasmin_pp" "$tasmax_pp" "$pr_pp" "$output_dir/thresholds.nc"
+    echo Rscript climpact2.ncdf.thresholds.wrapper.yl1269.r "$tasmin_pp" "$tasmax_pp" "$pr_pp" "$output_dir/thresholds.nc"
+
+else
+
+    Rscript climpact2.ncdf.wrapper.yl1269.r "$tasmin_pp" "$tasmax_pp" "$pr_pp" "$thresholds" "$output_dir"
+    echo Rscript climpact2.ncdf.wrapper.yl1269.r "$tasmin_pp" "$tasmax_pp" "$pr_pp" "$thresholds" "$output_dir"
+
+    # Fix output file names
+    for file in $output_dir/*_climpact.sample_historical_NA_1991-2010.nc; do
+        base=$(basename $file)
+
+        mv $file $output_dir/${base%%_climpact*}_${file_suffix}.nc
+    done
+fi
+
+touch $output_dir/$task.done
+rm $output_dir/$task.waiting
